@@ -1,48 +1,28 @@
 # Engineering Docs Research Assistant
 
-RAG-oriented backend: engineers upload PDF/Markdown/text, documents are chunked and embedded, and questions return answers with citations.
+This repository is a multi-user FastAPI backend for asking questions over uploaded engineering documents (PDF, Markdown, or plain text). It targets engineers who want citations grounded in their own files rather than a generic model, and it is built without LangChain or other RAG frameworks so every step of the pipeline stays visible and accountable.
 
-## Stack
+## Architecture
 
-- Python 3.12, FastAPI, SQLAlchemy, Celery, Redis  
-- PostgreSQL 16 with pgvector for vector(768) embeddings  
-- JWT auth (python-jose, passlib)  
-- Groq for the LLM; sentence-transformers runs locally for embeddings  
+Three flows split the work by latency and responsibility. Upload is synchronous: the client sends a file, FastAPI validates type and size against the user’s plan, writes the document row and bytes to disk, and returns immediately with a pending status. Indexing is asynchronous: FastAPI only enqueues a Celery task; a worker loads the file, extracts text, chunks it, runs sentence-transformers, and writes chunk rows with embeddings into PostgreSQL. That split avoids holding an HTTP connection open while a large PDF is parsed and embedded, which can take tens of seconds; the tradeoff is operational complexity (Redis, a worker process, and status fields on the document) instead of a single process. The query path is designed to stay on the FastAPI side: embedding the question, pgvector similarity search, assembling context, and calling the LLM would all run in the API process, not in Celery, because the user is waiting for one answer and the expensive part is bounded by retrieval width, not full-corpus indexing.
 
-## Layout
+## Security model
 
-- app/ — API routers, core config/security/database, ORM models, Pydantic schemas, services, Celery tasks  
-- docs/adr/ — architecture decision records  
-- tests/ — pytest suite (to be expanded)  
+API-level checks (JWT, ownership on document IDs) are necessary but not sufficient. If similarity search ever ran without scoping vectors to the authenticated user, a bug or mistaken query could return another tenant’s chunks because pgvector only sees vectors, not business rules. The rule used here is to filter every nearest-neighbor query by user_id in SQL, the same place the vectors live, so isolation is enforced where the data is read, not only where routes are declared. That duplicates the user id in chunk rows and adds an index predicate on every search, which is extra storage and query structure in exchange for a smaller blast radius if application code regresses.
 
-## Configuration
-
-Copy .env.example to .env and set secrets (especially JWT_SECRET_KEY and GROQ_API_KEY). See app/core/config.py for variable names.
-
-## Run with Docker
+## Running locally
 
 ```bash
-docker compose up --build
+git clone https://github.com/NadaAOUITI/engineering-docs-assistant
+cd engineering-docs-assistant
+cp .env.example .env
+docker compose up
 ```
 
-API: http://localhost:8000. PostgreSQL and Redis are exposed on 5432 and 6379 for local clients.
+## Tech stack
 
-The API and worker share one image; Compose overrides the command for the Celery worker.
+The service runs on Python 3.12 with FastAPI. PostgreSQL holds users, plans, documents, chunks, and query history, with the pgvector extension for 768-dimensional vector columns. Redis backs Celery as broker and result backend. Embeddings use sentence-transformers locally; the configured chat model is called through the Groq HTTP API. Docker Compose brings up the database, Redis, the API, and a Celery worker from the same image.
 
-## Development (without Docker)
+## Decisions
 
-Create a virtualenv, install dependencies from requirements.txt, run PostgreSQL with pgvector and Redis, set DATABASE_URL / REDIS_URL, then:
-
-```bash
-uvicorn app.main:app --reload
-```
-
-Celery (optional for local indexing):
-
-```bash
-celery -A app.worker.tasks:celery_app worker -l info
-```
-
-## Note
-
-Milestone 1 is structure and stubs only: authentication, ingestion, retrieval, and persistence logic are implemented in later milestones. Enable the vector extension in PostgreSQL before using embedding columns in production.
+Architecture notes live under docs/adr/. ADR 001 records why embeddings stay in PostgreSQL with pgvector instead of a separate vector database: for this scale, one transactional store keeps chunk rows and metadata consistent and avoids synchronizing a second system, at the cost of giving up Qdrant’s specialized scaling and operational tooling.
