@@ -2,11 +2,13 @@
 
 from datetime import datetime
 
-from pydantic import BaseModel
+from pydantic import BaseModel, ConfigDict
 
 
 class DocumentRead(BaseModel):
-    """Stub: single document row returned to the client."""
+    """Single document row returned to the client."""
+
+    model_config = ConfigDict(from_attributes=True)
 
     id: int
     filename: str
