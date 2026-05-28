@@ -6,6 +6,8 @@ This repository is a multi-user FastAPI backend for asking questions over upload
 
 Three flows split the work by latency and responsibility. Upload is synchronous: the client sends a file, FastAPI validates type and size against the user’s plan, writes the document row and bytes to disk, and returns immediately with a pending status. Indexing is asynchronous: FastAPI only enqueues a Celery task; a worker loads the file, extracts text, chunks it, runs sentence-transformers, and writes chunk rows with embeddings into PostgreSQL. That split avoids holding an HTTP connection open while a large PDF is parsed and embedded, which can take tens of seconds; the tradeoff is operational complexity (Redis, a worker process, and status fields on the document) instead of a single process. The query path is designed to stay on the FastAPI side: embedding the question, pgvector similarity search, assembling context, and calling the LLM would all run in the API process, not in Celery, because the user is waiting for one answer and the expensive part is bounded by retrieval width, not full-corpus indexing.
 
+![Architecture](docs/arch_diag.svg)
+
 ## API
 
 | Method | Endpoint | Auth | Description |
