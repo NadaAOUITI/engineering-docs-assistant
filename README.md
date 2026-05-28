@@ -6,6 +6,19 @@ This repository is a multi-user FastAPI backend for asking questions over upload
 
 Three flows split the work by latency and responsibility. Upload is synchronous: the client sends a file, FastAPI validates type and size against the user’s plan, writes the document row and bytes to disk, and returns immediately with a pending status. Indexing is asynchronous: FastAPI only enqueues a Celery task; a worker loads the file, extracts text, chunks it, runs sentence-transformers, and writes chunk rows with embeddings into PostgreSQL. That split avoids holding an HTTP connection open while a large PDF is parsed and embedded, which can take tens of seconds; the tradeoff is operational complexity (Redis, a worker process, and status fields on the document) instead of a single process. The query path is designed to stay on the FastAPI side: embedding the question, pgvector similarity search, assembling context, and calling the LLM would all run in the API process, not in Celery, because the user is waiting for one answer and the expensive part is bounded by retrieval width, not full-corpus indexing.
 
+## API
+
+| Method | Endpoint | Auth | Description |
+|--------|----------|------|-------------|
+| POST | /auth/register | — | Create a new user account |
+| POST | /auth/login | — | Authenticate and receive a JWT |
+| POST | /documents | ✓ | Upload a document (PDF, MD, TXT) |
+| GET | /documents | ✓ | List your uploaded documents |
+| DELETE | /documents/{id} | ✓ | Delete a document and its chunks |
+| POST | /queries | ✓ | Ask a question, get a cited answer |
+| GET | /queries | ✓ | Fetch your query history |
+| DELETE | /queries/{id} | ✓ | Delete a query from history |
+
 ## Security model
 
 API-level checks (JWT, ownership on document IDs) are necessary but not sufficient. If similarity search ever ran without scoping vectors to the authenticated user, a bug or mistaken query could return another tenant’s chunks because pgvector only sees vectors, not business rules. The rule used here is to filter every nearest-neighbor query by user_id in SQL, the same place the vectors live, so isolation is enforced where the data is read, not only where routes are declared. That duplicates the user id in chunk rows and adds an index predicate on every search, which is extra storage and query structure in exchange for a smaller blast radius if application code regresses.
