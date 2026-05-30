@@ -1,6 +1,17 @@
 # Environment-backed settings (database URL, JWT, Redis, Groq, embedding model).
 
+from pydantic import field_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
+
+
+def normalize_database_url(url: str) -> str:
+    """Use psycopg v3 driver; PaaS URLs are often plain postgresql:// or postgres://."""
+    normalized = url.strip()
+    if normalized.startswith("postgres://"):
+        return "postgresql+psycopg://" + normalized[len("postgres://") :]
+    if normalized.startswith("postgresql://"):
+        return "postgresql+psycopg://" + normalized[len("postgresql://") :]
+    return normalized
 
 
 class Settings(BaseSettings):
@@ -17,6 +28,13 @@ class Settings(BaseSettings):
     groq_model: str = "llama-3.3-70b-versatile"
     embedding_model_name: str = "sentence-transformers/all-mpnet-base-v2"
     upload_dir: str = "uploads"
+
+    @field_validator("database_url", mode="before")
+    @classmethod
+    def coerce_database_url(cls, value: object) -> object:
+        if isinstance(value, str):
+            return normalize_database_url(value)
+        return value
 
 
 settings = Settings()
