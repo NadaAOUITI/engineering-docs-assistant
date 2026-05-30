@@ -18,6 +18,8 @@ COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
 
 COPY app ./app
+COPY scripts ./scripts
+RUN chmod +x scripts/*.sh
 
-# Default: API. Override in docker-compose for the worker.
-CMD ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000"]
+# Railway sets PORT; start-api.sh reads it. Override for worker in Railway service settings.
+CMD ["bash", "scripts/start-api.sh"]

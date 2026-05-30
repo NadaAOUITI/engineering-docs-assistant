@@ -80,13 +80,3 @@ jobs:
 
       - name: Run tests
         run: pytest tests/ -v
-
-  deploy:
-    needs: test
-    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
-    runs-on: ubuntu-latest
-    steps:
-      - name: Trigger Railway deploy
-        env:
-          RAILWAY_WEBHOOK_URL: ${{ secrets.RAILWAY_WEBHOOK_URL }}
-        run: curl -fsS -X POST "$RAILWAY_WEBHOOK_URL"
