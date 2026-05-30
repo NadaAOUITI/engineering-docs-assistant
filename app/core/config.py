@@ -14,6 +14,7 @@ class Settings(BaseSettings):
     jwt_algorithm: str = "HS256"
     access_token_expire_minutes: int = 60
     groq_api_key: str = ""
+    groq_model: str = "llama-3.3-70b-versatile"
     embedding_model_name: str = "sentence-transformers/all-mpnet-base-v2"
     upload_dir: str = "uploads"
 

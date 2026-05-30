@@ -2,17 +2,15 @@
 
 from datetime import datetime
 
-from pydantic import BaseModel
+from pydantic import BaseModel, ConfigDict, Field
 
 
 class QueryCreate(BaseModel):
-    """Stub: body for POST /queries."""
-
-    question: str
+    question: str = Field(..., min_length=1)
 
 
 class QueryRead(BaseModel):
-    """Stub: stored query with answer and citations."""
+    model_config = ConfigDict(from_attributes=True)
 
     id: int
     question: str
