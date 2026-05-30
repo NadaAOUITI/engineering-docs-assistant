@@ -44,6 +44,8 @@ services:
     command: uvicorn app.main:app --host 0.0.0.0 --port 8000
     ports:
       - "8000:8000"
+    volumes:
+      - uploads:/app/uploads
     environment:
       DATABASE_URL: postgresql+psycopg://app:app@db:5432/engineering_docs
       REDIS_URL: redis://redis:6379/0
@@ -61,6 +63,8 @@ services:
   worker:
     build: .
     command: celery -A app.worker.tasks:celery_app worker -l info
+    volumes:
+      - uploads:/app/uploads
     environment:
       DATABASE_URL: postgresql+psycopg://app:app@db:5432/engineering_docs
       REDIS_URL: redis://redis:6379/0
@@ -78,3 +82,4 @@ services:
 volumes:
   pgdata:
   pgdata_test:
+  uploads:

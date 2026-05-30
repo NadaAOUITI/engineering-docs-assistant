@@ -1,4 +1,4 @@
-# Query entity: question, generated answer, and cited chunk ids (JSON array).
+# Query entity: per-user question history (user_id required for tenant isolation).
 
 from datetime import datetime
 
@@ -12,7 +12,11 @@ class Query(Base):
     __tablename__ = "queries"
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
-    user_id: Mapped[int] = mapped_column(ForeignKey("users.id"), nullable=False, index=True)
+    user_id: Mapped[int] = mapped_column(
+        ForeignKey("users.id"),
+        nullable=False,
+        index=True,
+    )
     question: Mapped[str] = mapped_column(Text, nullable=False)
     answer: Mapped[str] = mapped_column(Text, nullable=False)
     cited_chunk_ids: Mapped[list[int]] = mapped_column(JSON, nullable=False)

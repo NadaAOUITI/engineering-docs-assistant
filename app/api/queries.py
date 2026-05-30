@@ -11,7 +11,7 @@ from app.core.security import get_current_user
 from app.models.query import Query
 from app.models.user import User
 from app.schemas.query import QueryCreate, QueryRead
-from app.services.retrieval import answer_with_citations, retrieve_relevant_chunks
+from app.services.retrieval import answer_with_citations
 
 router = APIRouter(dependencies=[Depends(get_current_user)])
 
@@ -49,14 +49,14 @@ def create_query(
         )
 
     question_embedding = _embed_question(question)
-    chunks = retrieve_relevant_chunks(
-        current_user.id,
-        question_embedding,
-        db=db,
-    )
 
     try:
-        answer, cited_ids = answer_with_citations(current_user.id, question, chunks)
+        answer, cited_ids = answer_with_citations(
+            current_user.id,
+            question,
+            question_embedding,
+            db=db,
+        )
     except ValueError as exc:
         raise HTTPException(
             status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
@@ -94,8 +94,13 @@ def delete_query(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ) -> None:
-    query = db.get(Query, query_id)
-    if query is None or query.user_id != current_user.id:
+    query = db.scalar(
+        select(Query).where(
+            Query.id == query_id,
+            Query.user_id == current_user.id,
+        )
+    )
+    if query is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Not found")
     db.delete(query)
     db.commit()

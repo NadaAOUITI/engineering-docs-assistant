@@ -7,6 +7,8 @@ WORKDIR /app
 ENV PYTHONDONTWRITEBYTECODE=1
 ENV PYTHONUNBUFFERED=1
 ENV PYTHONPATH=/app
+# Force CPU-only PyTorch to avoid 1GB CUDA downloads
+ENV PIP_EXTRA_INDEX_URL=https://download.pytorch.org/whl/cpu
 
 RUN apt-get update && apt-get install -y --no-install-recommends \
     build-essential \
